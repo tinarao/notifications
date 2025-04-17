@@ -1,26 +1,47 @@
 use crate::storage::Storage;
-use axum::{Router, routing::get};
+use axum::{
+    Router,
+    routing::{get, post},
+};
 use dotenv::dotenv;
-use std::env;
+use std::{env, sync::Arc};
+use telegram::TelegramNotificator;
 
+mod endpoints;
 mod notifications;
 mod storage;
 mod telegram;
 
 const DEFAULT_PORT: i16 = 3692;
 
-#[tokio::main]
+#[derive(Clone)]
+pub struct AppState {
+    telegram: Arc<TelegramNotificator>,
+    storage: Arc<Storage>,
+}
+
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
-    // Setup
     dotenv().ok();
     let storage = Storage::new();
 
     match storage.ping() {
         Ok(_) => println!("Connected to Redis"),
         Err(e) => println!("Error connecting to Redis: {}", e),
-    }
+    };
 
-    let router = Router::new().route("/hc", get(|| async { "Alive!" }));
+    let state = AppState {
+        telegram: Arc::new(TelegramNotificator::new()),
+        storage: Arc::new(storage),
+    };
+
+    let router = Router::new()
+        .route("/hc", get(|| async { "Alive!" }))
+        .route(
+            "/notifications",
+            post(endpoints::register_notification_metadata),
+        )
+        .with_state(state);
 
     let port = match env::var("PORT") {
         Ok(v) => v,

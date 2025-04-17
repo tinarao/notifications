@@ -26,7 +26,11 @@ impl Storage {
         return self.client.get_connection();
     }
 
-    pub fn set_notification(&self, key: &str, notification: &Notification) -> Result<(), String> {
+    pub fn persist_notification(
+        &self,
+        key: &str,
+        notification: &Notification,
+    ) -> Result<(), String> {
         let mut con = self.get_conn().map_err(|e| e.to_string())?;
 
         con.json_set::<_, _, _, ()>(key, JSON_NOTIFICATION_KEY, notification)

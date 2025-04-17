@@ -1,4 +1,8 @@
-use tbot::{Bot, types::chat::Id};
+use tbot::{
+    Bot,
+    errors::MethodCall,
+    types::{Message, chat::Id},
+};
 
 pub struct TelegramNotificator {
     bot: Bot,
@@ -10,20 +14,11 @@ impl TelegramNotificator {
         TelegramNotificator { bot }
     }
 
-    pub async fn send(&mut self, message: &str, to: Id) -> bool {
+    pub async fn send(&mut self, message: &str, to: Id) -> Result<Message, MethodCall> {
         let message = message.to_owned();
         let bot = self.bot.clone();
         let result = bot.send_message(to, message.as_str()).call().await;
 
-        match result {
-            Ok(m) => {
-                dbg!("{}", m);
-                return true;
-            }
-            Err(e) => {
-                dbg!("{}", e);
-                return false;
-            }
-        }
+        return result;
     }
 }

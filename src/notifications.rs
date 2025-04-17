@@ -1,25 +1,31 @@
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[derive(Debug, Serialize, Deserialize)]
 pub enum NotificationKind {
     Daily,
     AtDemand,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Notification {
-    uuid: String,
-    text: String,
-    period: Option<String>,
-    kind: NotificationKind,
-    created_at: chrono::DateTime<chrono::Utc>,
+    pub uuid: String,
+    pub text: String,
+    pub period: Option<String>,
+    pub kind: NotificationKind,
+    pub created_at: String,
 }
+
+pub const JSON_NOTIFICATION_KEY: &str = "$";
 
 impl Notification {
     pub fn new(kind: NotificationKind, text: String) -> Self {
         let uuid = Uuid::new_v4();
+
         return Notification {
             uuid: uuid.to_string(),
-            kind: NotificationKind::AtDemand,
-            created_at: chrono::Utc::now(),
+            kind,
+            created_at: chrono::Utc::now().to_string(),
             text,
             period: None,
         };

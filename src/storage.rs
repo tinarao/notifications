@@ -1,4 +1,7 @@
-use redis::{Connection, RedisError};
+use redis::{Commands, Connection, JsonCommands, RedisError};
+use serde_json::Value;
+
+use crate::notifications::{JSON_NOTIFICATION_KEY, Notification};
 
 pub struct Storage {
     pub client: redis::Client,
@@ -15,21 +18,65 @@ impl Storage {
     }
 
     pub fn get_conn(&self) -> Result<Connection, RedisError> {
-        self.client.get_connection()
+        return self.client.get_connection();
+    }
+
+    pub fn set_notification(&self, key: &str, notification: &Notification) -> Result<(), String> {
+        let mut con = self.get_conn().map_err(|e| e.to_string())?;
+
+        con.json_set::<_, _, _, ()>(key, JSON_NOTIFICATION_KEY, notification)
+            .map_err(|e| format!("Failed to set JSON value: {}", e))?;
+
+        return Ok(());
+    }
+
+    pub fn get_notification(&self, key: &str) -> Result<Notification, String> {
+        let mut con = self.get_conn().map_err(|e| e.to_string())?;
+
+        let exists: bool = con
+            .exists(key)
+            .map_err(|e| format!("Failed to check key existence: {}", e))?;
+
+        if !exists {
+            return Err(format!("Key '{}' not found", key));
+        }
+
+        let result: String = con
+            .json_get(key, JSON_NOTIFICATION_KEY)
+            .map_err(|e| format!("Failed to get JSON value: {}", e))?;
+
+        let value: Value =
+            serde_json::from_str(&result).map_err(|e| format!("Failed to parse JSON: {}", e))?;
+
+        let obj = if value.is_array() {
+            value
+                .as_array()
+                .and_then(|arr| arr.first())
+                .ok_or_else(|| "Invalid JSON structure".to_string())?
+        } else {
+            &value
+        };
+
+        let deserialized: Result<Notification, String> = serde_json::from_value(obj.clone())
+            .map_err(|e| format!("Failed to deserialize JSON: {}", e));
+
+        return deserialized;
+    }
+
+    pub fn delete_notification(&self, key: &str) -> Result<(), String> {
+        let mut con = self.get_conn().map_err(|e| e.to_string())?;
+
+        con.del::<_, ()>(key)
+            .map_err(|e| format!("Failed to delete key: {}", e))?;
+
+        return Ok(());
+    }
+
+    pub fn exists(&self, key: &str) -> Result<bool, String> {
+        let mut con = self.get_conn().map_err(|e| e.to_string())?;
+
+        return con
+            .exists(key)
+            .map_err(|e| format!("Failed to check key existence: {}", e));
     }
 }
-
-// Example
-// let storage = Storage::new();
-//     let mut con = match storage.get_conn() {
-//         Ok(c) => c,
-//         Err(e) => panic!("failed to get a connection: {}", e),
-//     };
-//
-//     let _: () = con.set("hava", "nagila").unwrap();
-//
-//     let val: Result<String, RedisError> = con.get("hava");
-//     match val {
-//         Ok(v) => println!("v: {}", v),
-//         Err(e) => println!("err: {}", e),
-//     }

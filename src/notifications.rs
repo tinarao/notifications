@@ -1,3 +1,4 @@
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -9,11 +10,23 @@ pub enum NotificationKind {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Notification {
+    // Base ID
     pub uuid: String,
+
+    // Preformatted message text
     pub text: String,
-    pub period: Option<String>,
+
+    // Array of stringified UTC dates
+    // Max size = 2
+    // Used if kind == NotificationKind::Daily
+    pub daily_send_timestamps: Vec<String>,
+
+    // Daily notifications sends every day
+    // on timestamps, specified in self.daily_send_timestamps
     pub kind: NotificationKind,
-    pub created_at: String,
+
+    pub last_sent: Option<String>, // Stringified UTC date
+    pub created_at: String,        // Stringified UTC date
 }
 
 pub const JSON_NOTIFICATION_KEY: &str = "$";
@@ -27,7 +40,8 @@ impl Notification {
             kind,
             created_at: chrono::Utc::now().to_string(),
             text,
-            period: None,
+            daily_send_timestamps: Vec::new(),
+            last_sent: None,
         };
     }
 }
@@ -55,8 +69,15 @@ impl NotificationBuilder {
         return self;
     }
 
-    pub fn period(mut self, period: String) -> NotificationBuilder {
-        self.notification.period = Some(period);
+    pub fn daily_send_timestamp(mut self, timestamp: chrono::DateTime<Utc>) -> NotificationBuilder {
+        if self.notification.daily_send_timestamps.len() >= 2 {
+            return self;
+        }
+
+        self.notification
+            .daily_send_timestamps
+            .push(timestamp.to_string());
+
         return self;
     }
 

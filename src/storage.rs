@@ -17,6 +17,11 @@ impl Storage {
         return Storage { client };
     }
 
+    pub fn ping(&self) -> Result<(), String> {
+        let mut con = self.get_conn().map_err(|e| e.to_string())?;
+        return con.ping().map_err(|e| e.to_string());
+    }
+
     pub fn get_conn(&self) -> Result<Connection, RedisError> {
         return self.client.get_connection();
     }

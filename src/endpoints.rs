@@ -1,4 +1,5 @@
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
+use chrono::Utc;
 
 use crate::{
     AppState,
@@ -75,9 +76,22 @@ pub async fn register_notification_metadata(
 
     if payload.is_daily {
         for payload_ts in payload.daily_send_timestamps {
-            let timestamp_utc = chrono::DateTime::parse_from_str(&payload_ts, "%Y-%m-%d %H:%M:%S")
-                .unwrap()
-                .with_timezone(&chrono::Utc);
+            let timestamp_utc = match chrono::DateTime::parse_from_rfc3339(&payload_ts)
+                .map(|dt| dt.with_timezone(&Utc))
+            {
+                Ok(t_utc) => t_utc,
+                Err(_) => {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(MessageResponse {
+                            message: format!(
+                                "Incorrect date string: \"{}\". Expected format is RFC3339: 2025-04-18T12:00:00Z",
+                                &payload_ts
+                            ),
+                        }),
+                    );
+                }
+            };
 
             match notification.add_daily_timestamp(timestamp_utc) {
                 Ok(_) => (),
@@ -85,9 +99,7 @@ pub async fn register_notification_metadata(
                     println!("Error adding daily timestamp: {}", e);
                     return (
                         StatusCode::BAD_REQUEST,
-                        Json(MessageResponse {
-                            message: "Incorrect timestamp format".to_string(),
-                        }),
+                        Json(MessageResponse { message: e }),
                     );
                 }
             }

@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::telegram::{self, TelegramNotificator};
+use crate::{TelegramNotificator, notificators::Notificator, notificators::telegram};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum NotificationKind {

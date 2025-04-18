@@ -126,28 +126,22 @@ pub async fn register_notification_metadata(
         }
 
         NotificationKind::Daily => {
-            match state
-                .storage
-                .persist_notification(&notification.uuid, &notification)
-            {
-                Ok(_) => {
-                    return (
-                        StatusCode::OK,
-                        Json(MessageResponse {
-                            message: "Notification metadata successfully saved".to_string(),
-                        }),
-                    );
-                }
-                Err(e) => {
-                    println!("Failed to save notification metadata: {}", e);
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(MessageResponse {
-                            message: "Failed to save notification metadata".to_string(),
-                        }),
-                    );
-                }
+            if let Err(e) = state.storage.persist_notification(&notification) {
+                println!("Failed to save notification metadata: {}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(MessageResponse {
+                        message: "Failed to save notification metadata".to_string(),
+                    }),
+                );
             }
+
+            return (
+                StatusCode::OK,
+                Json(MessageResponse {
+                    message: "Notification metadata successfully saved".to_string(),
+                }),
+            );
         }
     }
 }

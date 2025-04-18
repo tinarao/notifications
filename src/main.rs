@@ -4,13 +4,13 @@ use axum::{
     routing::{get, post},
 };
 use dotenv::dotenv;
+use notificators::TelegramNotificator;
 use std::{env, sync::Arc};
-use telegram::TelegramNotificator;
 
 mod endpoints;
 mod notifications;
+mod notificators;
 mod storage;
-mod telegram;
 
 const DEFAULT_PORT: i16 = 3692;
 
@@ -25,13 +25,17 @@ async fn main() {
     dotenv().ok();
     let storage = Storage::new();
 
-    match storage.ping() {
-        Ok(_) => println!("Connected to Redis"),
-        Err(e) => println!("Error connecting to Redis: {}", e),
+    let tg_token = match env::var("TELEGRAM_BOT_TOKEN") {
+        Ok(t) => t,
+        Err(e) => {
+            panic!("{}", e)
+        }
     };
 
+    let telegram_notificator = TelegramNotificator::new(tg_token);
+
     let state = AppState {
-        telegram: Arc::new(TelegramNotificator::new()),
+        telegram: Arc::new(telegram_notificator),
         storage: Arc::new(storage),
     };
 

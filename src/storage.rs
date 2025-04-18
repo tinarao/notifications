@@ -1,4 +1,4 @@
-use redis::{Commands, Connection, JsonCommands, RedisError};
+use redis::{Commands, Connection, JsonCommands};
 use serde_json::Value;
 
 use crate::notifications::{JSON_NOTIFICATION_KEY, Notification};
@@ -18,29 +18,31 @@ impl Storage {
     }
 
     pub fn ping(&self) -> Result<(), String> {
-        let mut con = self.get_conn().map_err(|e| e.to_string())?;
+        let mut con = self.get_conn()?;
         return con.ping().map_err(|e| e.to_string());
     }
 
-    pub fn get_conn(&self) -> Result<Connection, RedisError> {
-        return self.client.get_connection();
+    fn get_conn(&self) -> Result<Connection, String> {
+        return match self.client.get_connection() {
+            Ok(c) => Ok(c),
+            Err(e) => {
+                let msg = format!("Failed to get redis connection: {}", e);
+                println!("{}", msg);
+                return Err(msg);
+            }
+        };
     }
 
-    pub fn persist_notification(
-        &self,
-        key: &str,
-        notification: &Notification,
-    ) -> Result<(), String> {
-        let mut con = self.get_conn().map_err(|e| e.to_string())?;
-
-        con.json_set::<_, _, _, ()>(key, JSON_NOTIFICATION_KEY, notification)
+    pub fn persist_notification(&self, notification: &Notification) -> Result<(), String> {
+        let mut con = self.get_conn()?;
+        con.json_set::<_, _, _, ()>(&notification.uuid, JSON_NOTIFICATION_KEY, notification)
             .map_err(|e| format!("Failed to set JSON value: {}", e))?;
 
         return Ok(());
     }
 
     pub fn get_notification(&self, key: &str) -> Result<Notification, String> {
-        let mut con = self.get_conn().map_err(|e| e.to_string())?;
+        let mut con = self.get_conn()?;
 
         let exists: bool = con
             .exists(key)
@@ -73,7 +75,7 @@ impl Storage {
     }
 
     pub fn delete_notification(&self, key: &str) -> Result<(), String> {
-        let mut con = self.get_conn().map_err(|e| e.to_string())?;
+        let mut con = self.get_conn()?;
 
         con.del::<_, ()>(key)
             .map_err(|e| format!("Failed to delete key: {}", e))?;
@@ -82,7 +84,7 @@ impl Storage {
     }
 
     pub fn exists(&self, key: &str) -> Result<bool, String> {
-        let mut con = self.get_conn().map_err(|e| e.to_string())?;
+        let mut con = self.get_conn()?;
 
         return con
             .exists(key)

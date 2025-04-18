@@ -1,4 +1,4 @@
-use crate::notifications::Notification;
+use crate::{notifications::Notification, notificators::Notificator};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use teloxide::prelude::*;
@@ -13,12 +13,14 @@ pub struct TelegramNotificator {
 }
 
 impl TelegramNotificator {
-    pub fn new() -> Self {
-        let bot = Bot::from_env();
+    pub fn new(token: String) -> Self {
+        let bot = Bot::new(token);
         Self { bot: Arc::new(bot) }
     }
+}
 
-    pub async fn send(&self, notification: &Notification) -> Result<(), String> {
+impl Notificator for TelegramNotificator {
+    async fn send(&self, notification: &Notification) -> Result<(), String> {
         let chat_id = notification.send_to.user_id;
         self.bot
             .send_message(ChatId(chat_id), &notification.text)

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   redis:
     image: redis/redis-stack:latest
@@ -10,4 +8,4 @@ services:
     command: redis-stack-server
 
 volumes:
-  redis_data: 
+  redis_data:

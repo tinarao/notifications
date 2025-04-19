@@ -1,24 +1,24 @@
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{TelegramNotificator, notificators::Notificator, notificators::telegram};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum NotificationKind {
     Daily,
     Instant,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum NotificationPlatform {
     Telegram,
     Email,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Notification {
     // Base ID
     pub uuid: String,
@@ -26,7 +26,7 @@ pub struct Notification {
     // Preformatted message text
     pub text: String,
 
-    // Array of stringified UTC dates
+    // Array of stringified dates
     // Max size = 2
     // Used if kind == NotificationKind::Daily
     pub daily_send_timestamps: Vec<String>,
@@ -59,18 +59,14 @@ impl Notification {
             kind: NotificationKind::Instant,
             platform: NotificationPlatform::Telegram,
             send_to: telegram::ContactData { user_id: 0 },
-            created_at: chrono::Utc::now().to_string(),
+            created_at: chrono::Local::now().to_string(),
             text: "Default notification".to_string(),
             daily_send_timestamps: Vec::new(),
             last_sent: None,
         };
     }
 
-    pub fn add_send_to(&mut self, send_to: i64) {
-        self.send_to = telegram::ContactData { user_id: send_to };
-    }
-
-    pub fn add_daily_timestamp(&mut self, timestamp: DateTime<Utc>) -> Result<(), String> {
+    pub fn add_daily_timestamp(&mut self, timestamp: DateTime<Local>) -> Result<(), String> {
         if self.daily_send_timestamps.len() >= MAX_DAILY_TIMESTAMPS {
             return Err("You can only send 2 notification a day".to_string());
         }
@@ -79,19 +75,7 @@ impl Notification {
         Ok(())
     }
 
-    // Колхозный dependency injection
-    // TODO: элегантнее
-    pub async fn send(&self, bot: Arc<TelegramNotificator>) -> Result<(), String> {
-        match self.kind == NotificationKind::Instant {
-            true => match self.send_instant(bot).await {
-                Ok(_) => Ok(()),
-                Err(e) => Err(e),
-            },
-            false => Err("Daily notifications are not implemented yet.".to_string()),
-        }
-    }
-
-    async fn send_instant(&self, bot: Arc<TelegramNotificator>) -> Result<(), String> {
+    pub async fn send_instant(&self, bot: Arc<TelegramNotificator>) -> Result<(), String> {
         let bot = bot.clone();
         match self.platform {
             NotificationPlatform::Telegram => match bot.send(self).await {
@@ -128,20 +112,8 @@ impl NotificationBuilder {
         return self;
     }
 
-    pub fn daily_send_timestamp(mut self, timestamp: chrono::DateTime<Utc>) -> NotificationBuilder {
-        if self.notification.daily_send_timestamps.len() >= MAX_DAILY_TIMESTAMPS {
-            return self;
-        }
-
-        self.notification
-            .daily_send_timestamps
-            .push(timestamp.to_string());
-
-        return self;
-    }
-
-    pub fn send_to(mut self, send_to: telegram::ContactData) -> NotificationBuilder {
-        self.notification.send_to = send_to;
+    pub fn send_to(mut self, send_to: i64) -> NotificationBuilder {
+        self.notification.send_to = telegram::ContactData { user_id: send_to };
         return self;
     }
 

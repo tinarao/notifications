@@ -17,11 +17,6 @@ impl Storage {
         return Storage { client };
     }
 
-    pub fn ping(&self) -> Result<(), String> {
-        let mut con = self.get_conn()?;
-        return con.ping().map_err(|e| e.to_string());
-    }
-
     fn get_conn(&self) -> Result<Connection, String> {
         return match self.client.get_connection() {
             Ok(c) => Ok(c),

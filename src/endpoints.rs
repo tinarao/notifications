@@ -1,9 +1,9 @@
-use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
-use chrono::Utc;
+use axum::{Json, extract::State, http::StatusCode};
 
 use crate::{
     AppState,
     notifications::{NotificationBuilder, NotificationKind, NotificationPlatform},
+    utils::{ResponseFabric, rfc3339_to_local},
 };
 
 const ALLOWED_PLATFORMS: [&str; 1] = ["telegram"];
@@ -18,8 +18,8 @@ pub struct RegisterNotificationMetadata {
 }
 
 #[derive(serde::Serialize)]
-struct MessageResponse {
-    message: String,
+pub struct MessageResponse {
+    pub message: String,
 }
 
 fn parse_platform_from_request(input: String) -> Result<NotificationPlatform, String> {
@@ -40,56 +40,43 @@ fn parse_platform_from_request(input: String) -> Result<NotificationPlatform, St
 pub async fn register_notification_metadata(
     State(state): State<AppState>,
     Json(payload): Json<RegisterNotificationMetadata>,
-) -> impl IntoResponse {
+) -> (StatusCode, Json<MessageResponse>) {
     let kind = match payload.is_daily {
         true => NotificationKind::Daily,
         false => NotificationKind::Instant,
     };
 
     if payload.is_daily && payload.daily_send_timestamps.len() == 0 {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(MessageResponse {
-                message: "is_daily is set true, but daily_send_timestamps size is 0".to_string(),
-            }),
+        return ResponseFabric::bad_request(
+            "is_daily is set true, but daily_send_timestamps size is 0",
         );
     }
 
     let platform = match parse_platform_from_request(payload.platform) {
         Ok(platform) => platform,
         Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(MessageResponse { message: e }),
-            );
+            return ResponseFabric::bad_request(e.as_str());
         }
     };
 
+    let send_to = payload.send_to.parse::<i64>().unwrap();
     let mut notification = NotificationBuilder::new()
         .text(payload.text)
         .kind(kind)
+        .send_to(send_to)
         .platform(platform)
         .build();
 
-    let send_to = payload.send_to.parse::<i64>().unwrap();
-    notification.add_send_to(send_to);
-
+    // add daily timestamps to notification if it's kind set to daily
     if payload.is_daily {
         for payload_ts in payload.daily_send_timestamps {
-            let timestamp_utc = match chrono::DateTime::parse_from_rfc3339(&payload_ts)
-                .map(|dt| dt.with_timezone(&Utc))
-            {
+            let timestamp_utc = match rfc3339_to_local(&payload_ts) {
                 Ok(t_utc) => t_utc,
                 Err(_) => {
-                    return (
-                        StatusCode::BAD_REQUEST,
-                        Json(MessageResponse {
-                            message: format!(
-                                "Incorrect date string: \"{}\". Expected format is RFC3339: 2025-04-18T12:00:00Z",
-                                &payload_ts
-                            ),
-                        }),
-                    );
+                    return ResponseFabric::bad_request(&format!(
+                        "Incorrect date string: \"{}\". Expected format is RFC3339: 2025-04-18T12:00:00Z",
+                        &payload_ts
+                    ));
                 }
             };
 
@@ -97,10 +84,10 @@ pub async fn register_notification_metadata(
                 Ok(_) => (),
                 Err(e) => {
                     println!("Error adding daily timestamp: {}", e);
-                    return (
-                        StatusCode::BAD_REQUEST,
-                        Json(MessageResponse { message: e }),
-                    );
+                    return ResponseFabric::bad_request(&format!(
+                        "Error adding daily timestamp: {}",
+                        e
+                    ));
                 }
             }
         }
@@ -108,40 +95,32 @@ pub async fn register_notification_metadata(
 
     match notification.kind {
         NotificationKind::Instant => {
-            if let Err(e) = notification.send(state.telegram).await {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(MessageResponse {
-                        message: format!("Error sending notification: {}", e),
-                    }),
-                );
+            if let Err(e) = notification.send_instant(state.telegram).await {
+                return ResponseFabric::internal_server_error(&format!(
+                    "Failed to send notification: {}",
+                    e
+                ));
             }
 
-            return (
-                StatusCode::OK,
-                Json(MessageResponse {
-                    message: "Sent!".to_string(),
-                }),
-            );
+            return ResponseFabric::ok("Sent!");
         }
 
         NotificationKind::Daily => {
             if let Err(e) = state.storage.persist_notification(&notification) {
                 println!("Failed to save notification metadata: {}", e);
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(MessageResponse {
-                        message: "Failed to save notification metadata".to_string(),
-                    }),
+                return ResponseFabric::internal_server_error(
+                    "Failed to save notification metadata",
                 );
             }
 
-            return (
-                StatusCode::OK,
-                Json(MessageResponse {
-                    message: "Notification metadata successfully saved".to_string(),
-                }),
-            );
+            if let Err(e) = state.scheduler.add_notification(&notification) {
+                println!("Failed to add notification to scheduler: {}", e);
+                return ResponseFabric::internal_server_error(
+                    "Failed to add notification to scheduler",
+                );
+            }
+
+            return ResponseFabric::ok("Notification metadata successfully saved");
         }
     }
 }

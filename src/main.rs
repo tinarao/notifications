@@ -5,12 +5,15 @@ use axum::{
 };
 use dotenv::dotenv;
 use notificators::TelegramNotificator;
+use scheduler::Scheduler;
 use std::{env, sync::Arc};
 
 mod endpoints;
 mod notifications;
 mod notificators;
+mod scheduler;
 mod storage;
+mod utils;
 
 const DEFAULT_PORT: i16 = 3692;
 
@@ -18,6 +21,7 @@ const DEFAULT_PORT: i16 = 3692;
 pub struct AppState {
     telegram: Arc<TelegramNotificator>,
     storage: Arc<Storage>,
+    scheduler: Arc<Scheduler>,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -32,11 +36,13 @@ async fn main() {
         }
     };
 
-    let telegram_notificator = TelegramNotificator::new(tg_token);
+    let telegram_notificator = Arc::new(TelegramNotificator::new(tg_token));
+    let scheduler = Scheduler::new(telegram_notificator.clone());
 
     let state = AppState {
-        telegram: Arc::new(telegram_notificator),
+        telegram: telegram_notificator,
         storage: Arc::new(storage),
+        scheduler: Arc::new(scheduler),
     };
 
     let router = Router::new()

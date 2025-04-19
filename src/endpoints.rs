@@ -107,7 +107,7 @@ pub async fn register_notification_metadata(
 
         NotificationKind::Daily => {
             if let Err(e) = state.storage.persist_notification(&notification) {
-                println!("Failed to save notification metadata: {}", e);
+                eprintln!("failed to persist notification: {}", e);
                 return ResponseFabric::internal_server_error(
                     "Failed to save notification metadata",
                 );

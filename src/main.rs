@@ -45,6 +45,24 @@ async fn main() {
         scheduler: Arc::new(scheduler),
     };
 
+    // schedule already registered notifications
+    match state.storage.get_all_notifications() {
+        Ok(notifications) => {
+            println!("loaded {} notifications from storage", notifications.len());
+            for notification in notifications {
+                if let Err(e) = state.scheduler.add_notification(&notification) {
+                    eprintln!(
+                        "failed to register loaded notification with key {}: {}",
+                        &notification.uuid, e
+                    );
+                };
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to load saved notifications: {}", e);
+        }
+    };
+
     let router = Router::new()
         .route("/hc", get(|| async { "Alive!" }))
         .route(
@@ -60,6 +78,7 @@ async fn main() {
             DEFAULT_PORT.to_string()
         }
     };
+
     let addr = format!("0.0.0.0:{}", port);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
 

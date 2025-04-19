@@ -75,7 +75,6 @@ impl Scheduler {
     }
 
     pub fn add_notification(&self, notification: &Notification) -> Result<(), String> {
-        println!("Adding notification to scheduler: {:?}", notification);
         self.tx
             .try_send((*notification).clone())
             .map_err(|e| e.to_string())

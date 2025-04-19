@@ -2,7 +2,7 @@
 
 <p align="center">
   <a>
-    <img src="https://skillicons.dev/icons?i=rust,redis" />
+    <img src="https://skillicons.dev/icons?i=rust,redis,docker" />
   </a>
 </p>
 

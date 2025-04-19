@@ -69,6 +69,27 @@ impl Storage {
         return deserialized;
     }
 
+    pub fn get_all_notifications(&self) -> Result<Vec<Notification>, String> {
+        let mut con = self.get_conn()?;
+
+        // Get all keys
+        let keys: Vec<String> = con
+            .keys("*")
+            .map_err(|e| format!("Failed to get keys: {}", e))?;
+
+        let mut notifications = Vec::new();
+
+        // Get notification for each key
+        for key in keys {
+            match self.get_notification(&key) {
+                Ok(notification) => notifications.push(notification),
+                Err(e) => eprintln!("Failed to get notification for key {}: {}", key, e),
+            }
+        }
+
+        Ok(notifications)
+    }
+
     pub fn delete_notification(&self, key: &str) -> Result<(), String> {
         let mut con = self.get_conn()?;
 

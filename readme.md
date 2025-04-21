@@ -77,7 +77,7 @@ Keep in mind, that service is in active development.
 - Docker and Docker Compose (for containerized deployment)
 - Telegram Bot Token
 
-### Running the Service
+## Natively
 
 1. Set up environment variables:
    ```bash
@@ -94,6 +94,32 @@ Or using Docker:
    ```bash
    docker compose up
    ```
+
+## Docker-compose
+
+```yaml
+services:
+  notifications:
+    image: your-registry/notifications:latest  # or use local build
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - PORT=3692
+    depends_on:
+      - redis
+    ports:
+      - "3692:3692"
+
+  redis:
+    image: redis/redis-stack:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-stack-server
+
+volumes:
+  redis_data:
+```
 
 ## API Documentation
 

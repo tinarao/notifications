@@ -6,7 +6,6 @@
   </a>
 </p>
 
-
 A Rust-based notification service that handles both instant and scheduled daily notifications, currently supporting Telegram as the primary notification platform.
 
 ## Features
@@ -77,7 +76,7 @@ Keep in mind, that service is in active development.
 - Docker and Docker Compose (for containerized deployment)
 - Telegram Bot Token
 
-## Natively
+### Natively
 
 1. Set up environment variables:
    ```bash
@@ -90,42 +89,48 @@ Keep in mind, that service is in active development.
    cargo run
    ```
 
-Or using Docker:
-   ```bash
-   docker compose up
-   ```
+### Docker-compose
 
-## Docker-compose
+Since notificator requires Redis Stack for fast JSON storage, you need to add one to your docker-compose file.
 
 ```yaml
-services:
-  notifications:
-    image: your-registry/notifications:latest  # or use local build
-    environment:
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - PORT=3692
-    depends_on:
-      - redis
-    ports:
-      - "3692:3692"
-
-  redis:
+redis:
     image: redis/redis-stack:latest
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     command: redis-stack-server
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 3
 
-volumes:
-  redis_data:
+notificator:
+    image: notificator:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "3692:3692"
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3692/hc" ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
 ```
 
 ## API Documentation
 
 ### Healthcheck
 
-**Endpoint:** `POST /hc`
+**Endpoint:** `GET /hc`
 
 Should return "Alive" string with status 200.
 
@@ -150,4 +155,4 @@ Should return "Alive" string with status 200.
 ## Development plan
 
 - Email notification support
-- Web interface for notification management
+- Maybe web interface ?? for notification management

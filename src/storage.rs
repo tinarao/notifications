@@ -9,7 +9,7 @@ pub struct Storage {
 
 impl Storage {
     pub fn new() -> Self {
-        let client = match redis::Client::open("redis://127.0.0.1:6379/") {
+        let client = match redis::Client::open("redis://redis:6379/") {
             Ok(c) => c,
             Err(e) => panic!("failed to connect to redis: {}", e),
         };

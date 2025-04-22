@@ -80,7 +80,10 @@ impl Notification {
         match self.platform {
             NotificationPlatform::Telegram => match bot.send(self).await {
                 Ok(_) => Ok(()),
-                Err(_) => Err("Failed to send notification".to_string()),
+                Err(e) => {
+                    eprintln!("{}", e);
+                    Err(e.to_string())
+                }
             },
             NotificationPlatform::Email => {
                 return Err("Email notifications are not implemented yet.".to_string());

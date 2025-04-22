@@ -1,8 +1,13 @@
-use axum::{Json, extract::State, http::StatusCode};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+};
+use uuid::Uuid;
 
 use crate::{
     AppState,
-    notifications::{NotificationBuilder, NotificationKind, NotificationPlatform},
+    notifications::{Notification, NotificationBuilder, NotificationKind, NotificationPlatform},
     utils::{ResponseFabric, rfc3339_to_local},
 };
 
@@ -20,6 +25,13 @@ pub struct RegisterNotificationMetadata {
 #[derive(serde::Serialize)]
 pub struct MessageResponse {
     pub message: String,
+    pub notification_id: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct NotificationResponse {
+    pub message: String,
+    pub notification: Notification,
 }
 
 fn parse_platform_from_request(input: String) -> Result<NotificationPlatform, String> {
@@ -37,6 +49,34 @@ fn parse_platform_from_request(input: String) -> Result<NotificationPlatform, St
 }
 
 #[axum::debug_handler]
+pub async fn get_notification_metadata(
+    Path(notification_key): Path<String>,
+    State(state): State<AppState>,
+) -> (StatusCode, Json<NotificationResponse>) {
+    if let Err(e) = Uuid::try_parse(&notification_key.as_str()) {
+        eprintln!("failed to parse uuid: {}", e);
+        return ResponseFabric::bad_request::<NotificationResponse>("Invalid notification key");
+    };
+
+    let ntf = match state.storage.get_notification(&notification_key.as_str()) {
+        Ok(n) => n,
+        Err(e) => {
+            eprintln!("failed to get notification by key: {}", e);
+            return ResponseFabric::not_found::<NotificationResponse>(
+                "Notification metadata not found",
+            );
+        }
+    };
+
+    let response = NotificationResponse {
+        message: "Found".to_string(),
+        notification: ntf,
+    };
+
+    return ResponseFabric::ok_with_existing("Found", response);
+}
+
+#[axum::debug_handler]
 pub async fn register_notification_metadata(
     State(state): State<AppState>,
     Json(payload): Json<RegisterNotificationMetadata>,
@@ -47,7 +87,7 @@ pub async fn register_notification_metadata(
     };
 
     if payload.is_daily && payload.daily_send_timestamps.len() == 0 {
-        return ResponseFabric::bad_request(
+        return ResponseFabric::bad_request::<MessageResponse>(
             "is_daily is set true, but daily_send_timestamps size is 0",
         );
     }
@@ -55,7 +95,7 @@ pub async fn register_notification_metadata(
     let platform = match parse_platform_from_request(payload.platform) {
         Ok(platform) => platform,
         Err(e) => {
-            return ResponseFabric::bad_request(e.as_str());
+            return ResponseFabric::bad_request::<MessageResponse>(e.as_str());
         }
     };
 
@@ -73,7 +113,7 @@ pub async fn register_notification_metadata(
             let timestamp_utc = match rfc3339_to_local(&payload_ts) {
                 Ok(t_utc) => t_utc,
                 Err(_) => {
-                    return ResponseFabric::bad_request(&format!(
+                    return ResponseFabric::bad_request::<MessageResponse>(&format!(
                         "Incorrect date string: \"{}\". Expected format is RFC3339: 2025-04-18T12:00:00Z",
                         &payload_ts
                     ));
@@ -84,7 +124,7 @@ pub async fn register_notification_metadata(
                 Ok(_) => (),
                 Err(e) => {
                     println!("Error adding daily timestamp: {}", e);
-                    return ResponseFabric::bad_request(&format!(
+                    return ResponseFabric::bad_request::<MessageResponse>(&format!(
                         "Error adding daily timestamp: {}",
                         e
                     ));
@@ -96,31 +136,34 @@ pub async fn register_notification_metadata(
     match notification.kind {
         NotificationKind::Instant => {
             if let Err(e) = notification.send_instant(state.telegram).await {
-                return ResponseFabric::internal_server_error(&format!(
+                return ResponseFabric::internal_server_error::<MessageResponse>(&format!(
                     "Failed to send notification: {}",
                     e
                 ));
             }
 
-            return ResponseFabric::ok("Sent!");
+            return ResponseFabric::ok_with_id("Sent!", notification.uuid);
         }
 
         NotificationKind::Daily => {
             if let Err(e) = state.storage.persist_notification(&notification) {
                 eprintln!("failed to persist notification: {}", e);
-                return ResponseFabric::internal_server_error(
+                return ResponseFabric::internal_server_error::<MessageResponse>(
                     "Failed to save notification metadata",
                 );
             }
 
             if let Err(e) = state.scheduler.add_notification(&notification) {
-                println!("Failed to add notification to scheduler: {}", e);
-                return ResponseFabric::internal_server_error(
+                eprintln!("Failed to add notification to scheduler: {}", e);
+                return ResponseFabric::internal_server_error::<MessageResponse>(
                     "Failed to add notification to scheduler",
                 );
             }
 
-            return ResponseFabric::ok("Notification metadata successfully saved");
+            return ResponseFabric::ok_with_id(
+                "Notification metadata successfully saved",
+                notification.uuid,
+            );
         }
     }
 }

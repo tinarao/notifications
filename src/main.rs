@@ -24,17 +24,41 @@ pub struct AppState {
     scheduler: Arc<Scheduler>,
 }
 
+enum AppMode {
+    Docker,
+    Native,
+}
+
+fn get_app_mode() -> AppMode {
+    match env::var("MODE") {
+        Ok(s) => match s.trim().to_lowercase().as_str() {
+            "docker" => AppMode::Docker,
+            "native" => AppMode::Native,
+            _ => {
+                println!("invalid MODE env set. Setting mode to docker");
+                AppMode::Docker
+            }
+        },
+        Err(_) => {
+            println!("MODE env not set. Setting mode to docker");
+            AppMode::Docker
+        }
+    }
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     dotenv().ok();
-    let storage = Storage::new();
 
     let tg_token = match env::var("TELEGRAM_BOT_TOKEN") {
         Ok(t) => t,
-        Err(e) => {
-            panic!("{}", e)
+        Err(_) => {
+            panic!("Telegram bot token environment variable is not set")
         }
     };
+
+    let app_mode = get_app_mode();
+    let storage = Storage::new(&app_mode);
 
     let telegram_notificator = Arc::new(TelegramNotificator::new(tg_token));
     let scheduler = Scheduler::new(telegram_notificator.clone());
@@ -68,6 +92,10 @@ async fn main() {
         .route(
             "/notifications",
             post(endpoints::register_notification_metadata),
+        )
+        .route(
+            "/find/:notification_key",
+            get(endpoints::get_notification_metadata),
         )
         .with_state(state);
 

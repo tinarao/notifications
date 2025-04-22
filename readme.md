@@ -61,11 +61,10 @@ The service exposes the following REST endpoints:
 The service requires the following environment variables:
 - `TELEGRAM_BOT_TOKEN` - Your Telegram bot token
 - `PORT` - (Optional) Port to run the service on (default: 3692)
+- `MODE`
 
-### Sending Notifications
-
-- **Instant Notifications**: Sent immediately using `send_instant()`
-- **Daily Notifications**: Automatically scheduled and sent at specified times
+### Mode
+`MODE` environment variable sets an mode, in which app runs. It can be "native" or "docker" and for now affects only connection string for redis. If not set, defaults to "docker".
 
 ## Usage
 

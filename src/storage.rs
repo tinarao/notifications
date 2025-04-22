@@ -1,15 +1,26 @@
 use redis::{Commands, Connection, JsonCommands};
 use serde_json::Value;
 
-use crate::notifications::{JSON_NOTIFICATION_KEY, Notification};
+use crate::{
+    AppMode,
+    notifications::{JSON_NOTIFICATION_KEY, Notification},
+};
 
 pub struct Storage {
     pub client: redis::Client,
 }
 
+fn get_redis_path(mode: &AppMode) -> String {
+    match mode {
+        AppMode::Docker => "redis://redis:6379/".to_string(),
+        AppMode::Native => "redis://127.0.0.1:6379/".to_string(),
+    }
+}
+
 impl Storage {
-    pub fn new() -> Self {
-        let client = match redis::Client::open("redis://redis:6379/") {
+    pub fn new(mode: &AppMode) -> Self {
+        let redis_path = get_redis_path(mode);
+        let client = match redis::Client::open(redis_path) {
             Ok(c) => c,
             Err(e) => panic!("failed to connect to redis: {}", e),
         };

@@ -62,7 +62,7 @@ impl Scheduler {
                                     .send_instant(telegram_clone.clone())
                                     .await
                                 {
-                                    eprintln!("Failed to send notification: {}", e);
+                                    tracing::error!("Failed to send notification: {}", e);
                                 }
                             }
                         });

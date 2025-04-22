@@ -33,7 +33,7 @@ impl Storage {
             Ok(c) => Ok(c),
             Err(e) => {
                 let msg = format!("Failed to get redis connection: {}", e);
-                println!("{}", msg);
+                tracing::error!("{}", msg);
                 return Err(msg);
             }
         };
@@ -94,7 +94,7 @@ impl Storage {
         for key in keys {
             match self.get_notification(&key) {
                 Ok(notification) => notifications.push(notification),
-                Err(e) => eprintln!("Failed to get notification for key {}: {}", key, e),
+                Err(e) => tracing::error!("Failed to get notification for key {}: {}", key, e),
             }
         }
 

@@ -7,6 +7,8 @@ use dotenv::dotenv;
 use notificators::TelegramNotificator;
 use scheduler::Scheduler;
 use std::{env, sync::Arc};
+use tower_http::trace::{self, TraceLayer};
+use tracing::Level;
 
 mod endpoints;
 mod notifications;
@@ -35,12 +37,12 @@ fn get_app_mode() -> AppMode {
             "docker" => AppMode::Docker,
             "native" => AppMode::Native,
             _ => {
-                println!("invalid MODE env set. Setting mode to docker");
+                tracing::info!("invalid MODE env set. Setting mode to docker");
                 AppMode::Docker
             }
         },
         Err(_) => {
-            println!("MODE env not set. Setting mode to docker");
+            tracing::info!("MODE env not set. Setting mode to docker");
             AppMode::Docker
         }
     }
@@ -49,6 +51,11 @@ fn get_app_mode() -> AppMode {
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     dotenv().ok();
+
+    tracing_subscriber::fmt()
+        .with_target(false)
+        .compact()
+        .init();
 
     let tg_token = match env::var("TELEGRAM_BOT_TOKEN") {
         Ok(t) => t,
@@ -72,18 +79,19 @@ async fn main() {
     // schedule already registered notifications
     match state.storage.get_all_notifications() {
         Ok(notifications) => {
-            println!("loaded {} notifications from storage", notifications.len());
+            tracing::info!("loaded {} notifications from storage", notifications.len());
             for notification in notifications {
                 if let Err(e) = state.scheduler.add_notification(&notification) {
-                    eprintln!(
+                    tracing::error!(
                         "failed to register loaded notification with key {}: {}",
-                        &notification.uuid, e
+                        &notification.uuid,
+                        e
                     );
                 };
             }
         }
         Err(e) => {
-            eprintln!("Failed to load saved notifications: {}", e);
+            tracing::error!("Failed to load saved notifications: {}", e);
         }
     };
 
@@ -97,12 +105,17 @@ async fn main() {
             "/find/:notification_key",
             get(endpoints::get_notification_metadata),
         )
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
+                .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
+        )
         .with_state(state);
 
     let port = match env::var("PORT") {
         Ok(v) => v,
         Err(_) => {
-            println!("Port is not specified. Run on default :{}", DEFAULT_PORT);
+            tracing::info!("Port is not specified. Run on default :{}", DEFAULT_PORT);
             DEFAULT_PORT.to_string()
         }
     };

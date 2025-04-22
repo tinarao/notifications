@@ -81,7 +81,7 @@ impl Notification {
             NotificationPlatform::Telegram => match bot.send(self).await {
                 Ok(_) => Ok(()),
                 Err(e) => {
-                    eprintln!("{}", e);
+                    tracing::error!("{}", e);
                     Err(e.to_string())
                 }
             },

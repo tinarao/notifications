@@ -54,14 +54,14 @@ pub async fn get_notification_metadata(
     State(state): State<AppState>,
 ) -> (StatusCode, Json<NotificationResponse>) {
     if let Err(e) = Uuid::try_parse(&notification_key.as_str()) {
-        eprintln!("failed to parse uuid: {}", e);
+        tracing::error!("failed to parse uuid: {}", e);
         return ResponseFabric::bad_request::<NotificationResponse>("Invalid notification key");
     };
 
     let ntf = match state.storage.get_notification(&notification_key.as_str()) {
         Ok(n) => n,
         Err(e) => {
-            eprintln!("failed to get notification by key: {}", e);
+            tracing::error!("failed to get notification by key: {}", e);
             return ResponseFabric::not_found::<NotificationResponse>(
                 "Notification metadata not found",
             );
@@ -123,7 +123,7 @@ pub async fn register_notification_metadata(
             match notification.add_daily_timestamp(timestamp_utc) {
                 Ok(_) => (),
                 Err(e) => {
-                    println!("Error adding daily timestamp: {}", e);
+                    tracing::info!("Error adding daily timestamp: {}", e);
                     return ResponseFabric::bad_request::<MessageResponse>(&format!(
                         "Error adding daily timestamp: {}",
                         e
@@ -147,14 +147,14 @@ pub async fn register_notification_metadata(
 
         NotificationKind::Daily => {
             if let Err(e) = state.storage.persist_notification(&notification) {
-                eprintln!("failed to persist notification: {}", e);
+                tracing::error!("failed to persist notification: {}", e);
                 return ResponseFabric::internal_server_error::<MessageResponse>(
                     "Failed to save notification metadata",
                 );
             }
 
             if let Err(e) = state.scheduler.add_notification(&notification) {
-                eprintln!("Failed to add notification to scheduler: {}", e);
+                tracing::error!("Failed to add notification to scheduler: {}", e);
                 return ResponseFabric::internal_server_error::<MessageResponse>(
                     "Failed to add notification to scheduler",
                 );

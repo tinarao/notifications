@@ -92,6 +92,15 @@ Keep in mind, that service is in active development.
 
 Since notificator requires Redis Stack for fast JSON storage, you need to add one to your docker-compose file.
 
+First, clone the repo and build the image
+```bash
+    git clone https://github.com/tinarao/notificator.git notificator && cd notificator
+    docker build -t notificator .
+    
+```
+
+Then, add following to your docker-compose.yml
+
 ```yaml
 redis:
     image: redis/redis-stack:latest
@@ -132,6 +141,28 @@ notificator:
 **Endpoint:** `GET /hc`
 
 Should return "Alive" string with status 200.
+
+### Find by key
+**Endpoint:** `GET /find/:notification_key`
+
+**Request Body:**
+```json
+{
+  "message": "Found",
+  "notification": {
+    "uuid": "random uuid key",
+    "text": "Default notification",
+    "daily_send_timestamps": [],
+    "kind": "Instant",
+    "platform": "Telegram",
+    "send_to": {
+      "user_id": 0
+    },
+    "last_sent": null,
+    "created_at": "2025-04-22 14:14:40.007832589 +03:00"
+  }
+}
+```
 
 ### Register Notification
 
